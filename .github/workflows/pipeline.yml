@@ -46,7 +46,7 @@ jobs:
     needs: build-and-push
 
   
-  runs-on: self-hosted
+  runs-on: self-hosted,windows
 
 
     steps:
