@@ -49,66 +49,38 @@ jobs:
 
   deploy:
 
-    needs: build-and-push
+  needs: build-and-push
 
-    runs-on:
-      - self-hosted
-      - windows
-
-
-    steps:
+  runs-on:
+    - self-hosted
+    - windows
 
 
-    - name: Checkout
-      uses: actions/checkout@v4
+  steps:
+
+  - name: Checkout
+    uses: actions/checkout@v4
 
 
-
-    - name: Setup kubectl
-      uses: azure/setup-kubectl@v4
-
+  - name: Setup kubectl
+    uses: azure/setup-kubectl@v4
 
 
-    - name: Configure Kubernetes (kind)
-      shell: powershell
-      run: |
+  - name: Configure Kubernetes (kind)
+    shell: powershell
+    run: |
 
-        mkdir $HOME\.kube -Force
+      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
-        kind export kubeconfig --name kind
+      New-Item -ItemType Directory -Force -Path "$HOME\.kube"
 
-
-
-    - name: Verify Kubernetes Access
-      shell: powershell
-      run: |
-
-        kubectl config current-context
-        kubectl get nodes
-        kubectl get pods
+      kind export kubeconfig --name kind
 
 
+  - name: Verify Kubernetes Access
+    shell: powershell
+    run: |
 
-    - name: Update Deployment Image
-      shell: powershell
-      run: |
-
-        kubectl set image deployment/flask-app `
-        flask-app=${{ secrets.DOCKER_USERNAME }}/flask-cicd:${{ github.sha }}
-
-
-
-    - name: Wait For Rollout
-      shell: powershell
-      run: |
-
-        kubectl rollout status deployment/flask-app --timeout=180s
-
-
-
-    - name: Verify Deployment
-      shell: powershell
-      run: |
-
-        kubectl get deployment flask-app
-        kubectl get pods
+      kubectl config current-context
+      kubectl get nodes
+      kubectl get pods
