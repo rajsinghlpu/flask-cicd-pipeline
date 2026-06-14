@@ -1,57 +1,117 @@
-deploy:
+name: CI-CD Pipeline
 
-  needs: build-and-push
-
-  runs-on:
-    - self-hosted
-    - windows
-
-  steps:
-
-  - name: Checkout
-    uses: actions/checkout@v4
+on:
+  push:
+    branches:
+      - main
 
 
-  - name: Setup kubectl
-    uses: azure/setup-kubectl@v4
+env:
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/flask-cicd
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 
-  - name: Configure Kubernetes (kind)
-    shell: powershell -ExecutionPolicy Bypass
-    run: |
+jobs:
 
-      New-Item -ItemType Directory -Force -Path "$HOME\.kube"
+  build-and-push:
 
-      kind export kubeconfig --name kind
+    runs-on: ubuntu-latest
 
 
-  - name: Verify Kubernetes Access
-    shell: powershell
-    run: |
+    steps:
 
-      kubectl config current-context
-      kubectl get nodes
-      kubectl get pods
+    - name: Checkout
+      uses: actions/checkout@v4
 
 
-  - name: Update Deployment Image
-    shell: powershell
-    run: |
-
-      kubectl set image deployment/flask-app `
-      flask-app=${{ secrets.DOCKER_USERNAME }}/flask-cicd:${{ github.sha }}
-
-
-  - name: Wait For Rollout
-    shell: powershell
-    run: |
-
-      kubectl rollout status deployment/flask-app --timeout=180s
+    - name: Login Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
 
-  - name: Verify Deployment
-    shell: powershell
-    run: |
+    - name: Build Docker Image
+      run: |
+        docker build \
+          -t $IMAGE_NAME:${{ github.sha }} \
+          -t $IMAGE_NAME:latest .
 
-      kubectl get deployment flask-app
-      kubectl get pods
+
+    - name: Push Docker Image
+      run: |
+        docker push $IMAGE_NAME:${{ github.sha }}
+        docker push $IMAGE_NAME:latest
+
+
+
+  deploy:
+
+    needs: build-and-push
+
+    runs-on:
+      - self-hosted
+      - windows
+
+
+    steps:
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+
+
+
+    - name: Configure kind Kubernetes
+      shell: powershell -ExecutionPolicy Bypass
+      run: |
+
+        New-Item -ItemType Directory -Force -Path "$HOME\.kube"
+
+        kind export kubeconfig --name kind
+
+
+
+    - name: Verify Kubernetes
+      shell: powershell
+      run: |
+
+        kubectl config current-context
+
+        kubectl cluster-info
+
+        kubectl get nodes
+
+        kubectl get pods
+
+
+
+    - name: Update Deployment Image
+      shell: powershell
+      run: |
+
+        kubectl set image deployment/flask-app `
+        flask-app=${{ secrets.DOCKER_USERNAME }}/flask-cicd:${{ github.sha }}
+
+
+
+    - name: Rollout Status
+      shell: powershell
+      run: |
+
+        kubectl rollout status deployment/flask-app --timeout=180s
+
+
+
+    - name: Verify Deployment
+      shell: powershell
+      run: |
+
+        kubectl get deployment flask-app
+
+        kubectl get pods
