@@ -5,10 +5,13 @@ on:
     branches:
       - main
 
+
 env:
   IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/flask-cicd
 
+
 jobs:
+
 
   build-and-push:
 
@@ -28,16 +31,19 @@ jobs:
 
 
     - name: Build Docker Image
+      shell: bash
       run: |
         docker build \
-        -t $IMAGE_NAME:${{ github.sha }} \
-        -t $IMAGE_NAME:latest .
+          -t $IMAGE_NAME:${{ github.sha }} \
+          -t $IMAGE_NAME:latest .
 
 
     - name: Push Docker Image
+      shell: bash
       run: |
         docker push $IMAGE_NAME:${{ github.sha }}
         docker push $IMAGE_NAME:latest
+
 
 
 
@@ -45,42 +51,55 @@ jobs:
 
     needs: build-and-push
 
-  
-  runs-on: self-hosted,windows
+    runs-on:
+      - self-hosted
+      - windows
 
 
     steps:
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
 
 
     - name: Setup kubectl
       uses: azure/setup-kubectl@v4
 
 
-    - name: Configure Kubernetes
+
+    - name: Configure Kubernetes (kind)
+      shell: powershell
       run: |
-        mkdir -p $HOME/.kube
-        echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
+
+        mkdir $HOME\.kube -Force
+
+        kind export kubeconfig --name kind
 
 
 
     - name: Verify Kubernetes Access
+      shell: powershell
       run: |
+
         kubectl config current-context
-        kubectl auth can-i get pods
         kubectl get nodes
+        kubectl get pods
 
 
 
     - name: Update Deployment Image
+      shell: powershell
       run: |
 
-        kubectl set image deployment/flask-app \
-        flask-app=$IMAGE_NAME:${{ github.sha }}
+        kubectl set image deployment/flask-app `
+        flask-app=${{ secrets.DOCKER_USERNAME }}/flask-cicd:${{ github.sha }}
 
 
 
     - name: Wait For Rollout
+      shell: powershell
       run: |
 
         kubectl rollout status deployment/flask-app --timeout=180s
@@ -88,6 +107,7 @@ jobs:
 
 
     - name: Verify Deployment
+      shell: powershell
       run: |
 
         kubectl get deployment flask-app
